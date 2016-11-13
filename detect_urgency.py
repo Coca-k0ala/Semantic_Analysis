@@ -4,7 +4,7 @@ is malicious or not."""
 import re
 import os
 from nltk.corpus import wordnet as wn
-from nltk.parse.stanford import StanfordDependencyParser
+from nltk.parse.stanford import StanfordDependencyParser, StanfordParser
 import shutil
 
 verbs = {x.name().split('.', 1)[0] for x in wn.all_synsets('v')}
@@ -37,6 +37,18 @@ def dependency(sentence):
 	for parse in parse_tree:
 		result.append(list(parse.triples()))
 	return result
+
+def normal_Parser(sentence):
+	"""
+	input: a string 
+	output: print POS Parse Tree
+	Given a sentence, by using stanford Parser, return its parse tree
+	"""
+	parser = StanfordParser(model_path='D:/school/CS175/amazon_project/englishPCFG.ser.gz')
+	sentences = parser.raw_parse_sents([sentence])
+	for line in sentences:
+		for sentence in line:
+			print(type(sentence))
 
 def check_mail_three_condition(path):
 	"""
@@ -110,27 +122,28 @@ def check_mail_new_alg(path, only_QC=False, only_UG=False):
 			check_member_flag = False
 
 	for line in content:
-		if not line.strip() == '':
-			if not only_QC:
-				if check_member_flag and not check_one_urgency(line): # there is bad consequency
-					print("DETECTED GREETING AND URGENCE TRUE")
-					print("MAIL IS MALICIOUS")
-					return True
-			if not only_UG:
-				if check_command(line):
-					# print("is command")
-					if not check_one_action(line):
-						print("DETECTED BAD ACTION TRUE")
+		if len(line) < 200:
+			if not line.strip() == '':
+				if not only_QC:
+					if check_member_flag and not check_one_urgency(line): # there is bad consequency
+						print("DETECTED GREETING AND URGENCE TRUE")
 						print("MAIL IS MALICIOUS")
 						return True
-				subs = dectectSubclause(line)
-				for sub in subs:
-					if isQuestion(sub):
-						# print("is Question")
+				if not only_UG:
+					if check_command(line):
+						# print("is command")
 						if not check_one_action(line):
-							print("DETECTED MALICIOUS QUESTION TRUE")
+							print("DETECTED BAD ACTION TRUE")
 							print("MAIL IS MALICIOUS")
 							return True
+					subs = dectectSubclause(line)
+					for sub in subs:
+						if isQuestion(sub):
+							# print("is Question")
+							if not check_one_action(line):
+								print("DETECTED MALICIOUS QUESTION TRUE")
+								print("MAIL IS MALICIOUS")
+								return True
 	return False #mail is legitimate
 
 def percentage_detected(filedir, only_QC=False, only_UG=False):
@@ -144,7 +157,7 @@ def percentage_detected(filedir, only_QC=False, only_UG=False):
 	Given a file path, applying semantic analysis algorithm, print the percentage of malicious mails detected
 	by chosen method.
 	"""
-	filelist = [f for f in os.listdir(filedir) if os.path.isfile(filedir + f)][0:4] #change!
+	filelist = [f for f in os.listdir(filedir) if os.path.isfile(filedir + f)]
 	no_pattern_list = list()
 	error_list = list()
 	malicious_list = list()
@@ -227,13 +240,20 @@ def check_noun_inside(triple):
 		return triple[2][0]
 
 def stem(word):
-#stem verb to base tense
+	"""
+	input: a string word
+	output: a string word's original form
+	Given a word, stem it to its base tense
+	"""
 	from nltk.stem.wordnet import WordNetLemmatizer
-
 	return WordNetLemmatizer().lemmatize(word, 'v')
 
 def check_one_urgency(sentence):
-#return true is sentence not contain bad consequency, false if not
+	"""
+	input: a string sentence
+	output: true if sentence does not contains urgency, false if sentence uses urgent tone
+	Given a sentence, return true if sentence does not contains urgency, false if sentence uses urgent tone
+	"""
 	try:
 		dependency_dict = dependency(sentence)
 	except Exception, e:
@@ -249,14 +269,11 @@ def check_one_urgency(sentence):
 			if noun_result != None and verb_result != None:
 				base_verb = stem(verb_result.lower())
 				verb_noun_pair = [noun_result.lower(), base_verb]
-				# print(verb_noun_pair)
 				verb_noun_list.append(verb_noun_pair)
 		if triple[1] == 'compound' or triple[1] == 'nmod':
 			compound = {triple[0][0].lower(), triple[2][0].lower()}
-			# print(compound)
 			compound_list.append(compound)
 			if compound in black_compound_list:
-				# print("in black compound")
 				return False
 		if triple[1] == "advmod" or triple[1] == "aux":
 			# print(triple)
@@ -264,17 +281,13 @@ def check_one_urgency(sentence):
 			base_verb = stem(verb_result)
 			adv_result = triple[2][0].lower()
 			if base_verb in black_adv_verb_list and adv_result in black_adv_list:
-				# print("in black adv")
 				return False #sentence contain urgency
-		if triple[1] == "amod":
-			#adv describe a noun
-			# print(triple)
+		if triple[1] == "amod": #adv describe a noun
 			noun_result = triple[0][0].lower()
 			adv_result = triple[2][0].lower()
 			base_noun = stem(noun_result)
 			base_adv = stem(adv_result)
 			if base_noun in black_adv_noun_list and base_adv in black_adv_list:
-				# print("in black adv")
 				return False #sentence contain urgency
 			if base_noun in black_noun_list and base_adv in black_verb_list:
 				# for sentence like "'Your account might be place on restricted status."
@@ -285,23 +298,22 @@ def check_one_urgency(sentence):
 			return False #contain bad consequence
 		noun = pair[0]
 		if pair[1] in black_verb_list:
-			# print("in black verb")
 			for compound in compound_list:
 				if pair[0] in compound:
 					noun = compound
 			if noun in black_noun_list or pair[0] in black_noun_list:
-				# print("in black noun")
 				return False #sentence contain bad consequence
 	return True
 
 def check_one_action(sentence):
-#return true is sentence not contain action, false if not
-	#detect click here
+	"""
+	input: a string sentence
+	output: true if sentence does not contains malicious action, false other wise
+	Given a sentence, return true if sentence does not contains malicious action, false other wise
+	"""
 	if (("click here" in sentence.lower()) or ("apply now" in sentence.lower()) 
 		or ("confirm now" in sentence.lower())):
 		return False #sentence contains click here
-	# if re.match(r"\((.*)\)", sentence):
-	# 	sentence = sentence
 	urls = re.search(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+\~]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', sentence)
 	if urls:
 		return False #sentence contain link which imply request for action
@@ -321,7 +333,6 @@ def check_one_action(sentence):
 			base_verb = stem(verb_result.lower())
 			noun_result = stem(noun_result.lower())
 			verb_noun_pair = [noun_result.lower(), base_verb]
-			# print(verb_noun_pair)
 			verb_noun_list.append(verb_noun_pair)
 		if triple[1] == 'compound' or triple[1] == 'nmod':
 			if triple[0][0] == 'send' or triple[0][0] == 'response':
@@ -329,7 +340,6 @@ def check_one_action(sentence):
 				if obj:
 					return False #contain action require to send email
 			compound = {triple[0][0].lower(), triple[2][0].lower()}
-			# print(compound)
 			compound_list.append(compound)
 			if compound in black_compound_list:
 				return False
@@ -339,35 +349,37 @@ def check_one_action(sentence):
 				if obj:
 					return False #contain action require to send email
 
-	# print(compound_list)
 	for pair in verb_noun_list:
 		noun = pair[0]
 		if pair[1] in black_action_verb_list:
 			for compound in compound_list:
 				if pair[0] in compound:
 					noun = compound
-			# print(pair, noun)
 			if noun in black_action_noun_list or pair[0] in black_action_noun_list:
-				# print(pair)
-				# print(noun)
 				return False #sentence contain bad action
 	return True
 
 
 def check_member(sentences):
-#return true if sentence contain XXX member, false is not
-	# print(sentences)
+	"""
+	input: list of strings sentences
+	output: true if the sentences contains generic greeting, false other wise
+	Given a sentence, return true if the sentence contains generic greeting, false other wise
+	"""
 	for sentence in sentences:
-		# print(repr(sentence))
 		obj = re.search(r'Dear(.*)(Member|member|client|user| Client|User|account|Account|customer|Customer|PayPal|Customers|Sir/Madam|Sir|Madam)(\s)?(,|:|\n|\s)', sentence)
 		obj1 = re.search(r'^(Hello\,|Hi\,|Hi\!|Hello Again\:|Hi there\,)', sentence)
 		if obj or obj1:
-			# print obj1.group()
 			return True
 	return False
 
 def check_no_address(sentences):
-#check the first three sentences contain Hi, hello or dear, return false is there is one of them
+	"""
+	input: list of string sentences
+	output: true if the sentences contains generic greeting, false other wise
+	Given a sentence, return true if the sentence contains generic greeting, false other wise
+	check the first three sentences contain Hi, hello or dear, return false is there is one of them
+	"""
 	words = ['Hi', 'Hello', 'Dear']
 	for sentence in sentences:
 		if any(word in sentence for word in words):
@@ -375,46 +387,33 @@ def check_no_address(sentences):
 	return True #There is no address
 
 def check_command(sentence):
-#return true if is command, false if not
+	"""
+	input: a string sentence
+	output: true if sentence is a command, false other wise
+	Given a sentence, return true if sentence is a command, false other wise
+	"""
+
 	"""Check sentence starts with verb"""
 	obj = re.match(r"\((.*)\)", sentence)
 	if obj:
 		sentence = (obj.group(1))
-	# sentence = sentence.strip().lower()
 	words = sentence.strip().lower().split()
-	# words = nltk.word_tokenize(sentence)
-	# pos = nltk.pos_tag(words)
-	# if pos[0][0] in verbs:
-	# 	print("wordnet verb")
-	# 	return True
-	# if re.match(r"^VB", pos[0][1]) or pos[0][0] in verbs: #start with verb
-	# 	return True
-	# print sentence
 	if words[0] in verbs: #start with verb
 		return True
 	elif re.match(r'(^to|^In order to)', sentence, flags=re.IGNORECASE):
 		return True
-	# if re.match(r"(.*)?if (.*),", sentence):
+
 	subsentences = sentence.split(",")
-	# print("subsenteces: " + str(subsentences))
-	# subsentences = dectectSubclause(sentence)
-	# subsentences = subsentences + sentence.split(",")
-	# print(subsentences)
 	for subsentence in subsentences:
 		words = subsentence.split()
-		# print(subsentence)
-		# print("words: " + str(words))
 		if re.match(r"^please (.*)", subsentence) or re.match(r"(.*)?you (need|have) to (.*)", subsentence) or re.match(r"(.*)?you can (.*)", subsentence) or re.match(r"(.*) you should (.*)", subsentence):
 			return True
 		elif len(words) > 0 and words[0] in verbs:
 			return True
-	# print(sentence)
 	if re.match(r"^please (.*)", sentence) or re.match(r"(.*)?you (need|have) to (.*)", sentence) or re.match(r"(.*)?you (can|could) (.*)", sentence) or re.match(r"(.*) you should (.*)", sentence):
-		# print("in if .. please")
 		return True
 	if len(words) > 2 and words[0] in advs:
 		if words[1] in verbs:
-			# print("in advs")
 			return True
 
 	"""check common command pattern by dependency tree"""
@@ -433,36 +432,36 @@ def check_command(sentence):
 			if noun_result.lower() == "you" or noun_result.lower() == "user":
 				base_verb = stem(verb_result.lower())
 				verb_noun_pair = [noun_result.lower(), base_verb]
-				# print(verb_noun_pair)
 				verb_noun_list.append(verb_noun_pair)
 		if triple[1] == 'compound' or triple[1] == 'nmod':
 			compound = {triple[0][0].lower(), triple[2][0].lower()}
-			# print(compound)
 			compound_list.append(compound)
 	for pair in verb_noun_list:
-		# noun = pair[0]
 		if pair[1] in black_command_verb_list:
-			# print("in here")
 			return True #sentence is command
-			# for compound in compound_list:
-			# 	if pair[0] in compound:
-			# 		noun = compound
-			# if noun in black_action_noun_list or pair[0] in black_action_noun_list:
-			# 	return False
 	return False #sentence is not command
 
-def normal_Parser(sentence):
-	from nltk.parse.stanford import StanfordParser
+def isQuestion(sentence):
+	"""
+	input: a string sentence
+	output: true if sentence is a question, false other wise
+	Given a sentence, return true if a sentence's label is SQ, false other wise
+	"""
 	parser = StanfordParser(model_path='D:/school/CS175/amazon_project/englishPCFG.ser.gz')
 	sentences = parser.raw_parse_sents([sentence])
-	# print(sentences)
 	for line in sentences:
 		for sentence in line:
-			print(type(sentence))
+			for s in sentence.subtrees():
+				if s.label() == "SINV" or s.label() == "SQ" or s.label() == "SBARQ":
+					return True
+	return False
 
 def dectectSubclause(sentence):
-	"""return a list of subclauses"""
-	from nltk.parse.stanford import StanfordParser
+	"""
+	input: a string sentence
+	output: eturn a list of subclauses
+	Given a sentence, split it into list of subclauses
+	"""
 	parser = StanfordParser(model_path='D:/school/CS175/amazon_project/englishPCFG.ser.gz')
 	try:
 		sentences = parser.raw_parse_sents([sentence])
@@ -473,129 +472,43 @@ def dectectSubclause(sentence):
 	subs = list()
 	for line in sentences:
 		for sentence in line:
-			# print(sentence)
-			# print(sentence.productions())
-			# print(sentence.flatten())
 			for s in sentence.subtrees(lambda t: t.label() == "S"):
-				# print(s.leaves())
 				subsentece = " ".join(s.leaves())
-				# print(subsentece)
 				subs.append(subsentece)
 	return subs
-
-def isQuestion(sentence):
-	"return true if a sentence's label is SQ"
-	from nltk.parse.stanford import StanfordParser
-	parser = StanfordParser(model_path='D:/school/CS175/amazon_project/englishPCFG.ser.gz')
-	sentences = parser.raw_parse_sents([sentence])
-	# print(sentences)
-	for line in sentences:
-		for sentence in line:
-			# print(sentence)
-			# print(sentence.label())
-			for s in sentence.subtrees():
-				if s.label() == "SINV" or s.label() == "SQ" or s.label() == "SBARQ":
-					return True
-	return False
 
 
 if __name__ == '__Main__':
 
 	"""test area"""
-	# path = "D:/school/research/speech recognition/speech_to_text/SEParsernew/SEParser/testMails/urgency/428.txt"
-	# path = "D:/school/research/speech recognition/speech_to_text/SEParsernew/SEParser/testMails/426.txt"
-	# path = "D:/school/research/speech recognition/enron_mail/152.txt"
-	# path = "D:/school/research/speech recognition/mails2/no_link5new2/no_action2/no_pattern/44.txt"
-	# path = "D:/school/research/speech recognition/mails2/525.txt"
-	# path = "D:/school/research/speech recognition/dialogs/3.txt"
-	# path = "D:/school/research/speech recognition/mails/255.txt"
 	path = "D:/school/research/speech recognition/578mail/553.txt"
 	# print(check_mail(path))
 	# print(check_mail_new_alg(path))
-	filedir = "D:/school/research/speech recognition/578_result/no_link/"
 	filedir = "D:/school/research/speech recognition/enron_mail_test/"
 	# read_list_mails(filedir)
 
-	# sentence = ["Dear eBay Member, Due to recent account takeovers and unauthorized listings, eBay is introducing a new account verification method."]
-	# sentence = "Hi, hjkhk"
 	# sentence = ["Dear PayPal , We recently noticed one or more attempts to log in to your PayPal accountfrom a foreign IP address."]
 	# print(check_member(sentence))
 
-	# i = "You have 3 days to enter required information or your credit card will be locked."
-	# i = "However, if you did not initiatethe log ins, please visit PayPal as soon as possible to verify youridentity:https://www.paypal.com/us/cgi-bin/webscr?cmd=_login-run"
 	# i = "Due to the suspension of this account, please be advised you are prohibited from using eBay in any way."
 	# print(check_one_urgency(i))
 
 	# s = "Please click here"
-	# s = "To complete your PayPal Premier account, you must click the link below and enter your password on the following page to confirm your email address."
 	# print(check_one_action(s))
-	i = "And I think what happened was the new system that we are moving to the fields aren't compatible with the old system, so I've got some incomplete information for these people which I was tasked to call so do you have a couple of minutes so you can help me update your records?"
-	# i = "do you have a couple of minutes so you can help me update your records?"
-	i = "In order to update your account details please access the link below and complete the required steps: National Credit Union Association Security Update Once all the requirements are met, your account will be secured and safe from any possible future illegal use."
-	i = "To take an advantages of current updrade you should login your account by using CitiBusiness Online application."
-	i = "For update your Account click the link and follow the steps :- https://online.wellsfargo.com/signon?LOB=CONS "
-	i = "To help speed up this process, please access the following link so we cancomplete the verification ofyour Chase Online Banking Account"
-	i = "If this reached you by mistake please let us know by going here: http://vfq3.net/"
-	i = "Confirm Now"
+
 	i = "If you don't agree with this email and if you need assistance with your account, click here and process your login."
 	# print(check_command(i))
 	# print(check_one_action(i))
 
-	"""test detect """
+	"""test detecting question"""
 	# i = "do you have a couple of minutes"
 	# print(isQuestion(i))
 	i = "What is the password"
-	# i = "Give me your password"
 	# subs = dectectSubclause(i)
 	# print(subs)
 	# for sub in subs:
 	# 	print(isQuestion(sub))
 		# print(check_command(sub))
-	# print(dependency(i))
-	print(check_one_action(i))
 	# i = "The security of the ATM PIN is very important."
-	i = "Cloned and stolen card numbers are the point of vulnerability that enables identity theft."
-	i = "ALERT: Third and FINAL Notification:"
 	# print(check_one_urgency(i))#return true is sentence not contain bad consequency, false if not
 	# print(normalParser(i))
-
-	"""
-	result:
-	['203.txt', '22.txt', '224.txt', '225.txt', '24.txt', '247.txt', '255.txt', '257.txt', '258.txt', '26.txt', '268.txt', '271.txt', '273.txt', '279.txt', '282.txt', '374.txt', '56.txt', 'analysis.docx', 'analysis.txt', 'testMails.zip']
-	['106.txt', '109.txt', '112.txt', '113.txt', '123.txt', '126.txt', '127.txt', '129.txt', '137.txt', '138.txt', 
-	'14.txt',
-	 '142.txt', '143.txt', '144.txt', '157.txt', '158.txt', '167.txt', '168.txt', 
-	'17.txt', '200.txt', '219.txt', '235.txt', '252.txt', '261.txt', '277.txt', '285.txt', '303.txt', '312.txt', 
-	'347.txt', '354.txt', 
-	'360.txt', '367.txt', '380.txt', '389.txt', '393.txt', '407.txt', '416.txt', '417.txt', '428.txt']
-	"""
-
-
-	"""
-	result:
-	['101.txt', '105.txt', '106.txt', '11.txt', '110.txt', '116.txt', '13.txt', '131.txt', '132.txt', '135.txt', 
-	'138.txt', '140.txt', '145.txt', '150.txt', '151.txt', '152.txt', '155.txt', '158.txt', '160.txt', '162.txt', 
-	'163.txt', '165.txt', '166.txt', '171.txt', '174.txt', '175.txt', '183.txt', '184.txt', '191.txt', '198.txt',
-	 '215.txt', '225.txt', '226.txt', '229.txt', '23.txt', '230.txt', '238.txt', '241.txt', '243.txt', '244.txt', 
-	 '252.txt', '255.txt', '257.txt', '259.txt', '26.txt', '262.txt', '265.txt', '27.txt', '273.txt', '275.txt',
-	  '276.txt', '277.txt', '281.txt', '290.txt', '291.txt', '295.txt', '3.txt', '303.txt', '304.txt', '305.txt',
-	   '306.txt', '307.txt', '308.txt', '316.txt', '317.txt', '318.txt', '32.txt', '320.txt', '324.txt', '325.txt', 
-	   '330.txt', '333.txt', '334.txt', '336.txt', '339.txt', '341.txt', '342.txt', '346.txt', '353.txt', '354.txt', 
-	   '355.txt', '357.txt', '377.txt', '378.txt', '379.txt', '380.txt', '384.txt', '397.txt', '398.txt', '402.txt',
-	    '403.txt', '404.txt', '406.txt', '407.txt', '418.txt', '421.txt', '424.txt', '428.txt', '433.txt', '434.txt', 
-	    '439.txt', '446.txt', '447.txt', '458.txt', '461.txt', '462.txt', '463.txt', '465.txt', '467.txt', '469.txt', 
-	    '471.txt', '482.txt', '486.txt', '487.txt', '488.txt', '495.txt', '5.txt', '501.txt', '58.txt', '59.txt',
-	     '6.txt', '66.txt', '72.txt', '73.txt', '74.txt', '75.txt', '76.txt', '78.txt', '79.txt', '8.txt', '88.txt',
-	      '91.txt', '95.txt', '96.txt']
-	[]
-	"""
-
-	"""
-	result:
-	total mails: 500
-	error_list: []
-	no pattern list: 177
-	['323.txt', '324.txt', '325.txt', '326.txt', '327.txt', '329.txt', '330.txt', '331.txt', '332.txt', '333.txt', '334.txt', '335.txt', '336.txt', '337.txt', '338.txt', '339.txt', '340.txt', '341.txt', '342.txt', '343.txt', '344.txt', '345.txt', '346.txt', '347.txt', '348.txt', '349.txt', '350.txt', '351.txt', '352.txt', '353.txt', '354.txt', '355.txt', '356.txt', '357.txt', '358.txt', '359.txt', '360.txt', '361.txt', '362.txt', '363.txt', '364.txt', '365.txt', '366.txt', '367.txt', '368.txt', '369.txt', '370.txt', '371.txt', '372.txt', '373.txt', '374.txt', '375.txt', '376.txt', '377.txt', '378.txt', '379.txt', '380.txt', '381.txt', '382.txt', '383.txt', '384.txt', '385.txt', '386.txt', '387.txt', '388.txt', '389.txt', '390.txt', '392.txt', '393.txt', '394.txt', '395.txt', '396.txt', '397.txt', '398.txt', '399.txt', '400.txt', '401.txt', '402.txt', '403.txt', '404.txt', '405.txt', '406.txt', '407.txt', '408.txt', '409.txt', '410.txt', '411.txt', '412.txt', '413.txt', '414.txt', '415.txt', '416.txt', '417.txt', '418.txt', '419.txt', '420.txt', '421.txt', '422.txt', '423.txt', '424.txt', '425.txt', '426.txt', '427.txt', '428.txt', '429.txt', '430.txt', '431.txt', '432.txt', '433.txt', '434.txt', '435.txt', '436.txt', '437.txt', '438.txt', '439.txt', '440.txt', '441.txt', '442.txt', '443.txt', '444.txt', '445.txt', '446.txt', '447.txt', '448.txt', '449.txt', '450.txt', '451.txt', '452.txt', '453.txt', '454.txt', '455.txt', '456.txt', '457.txt', '458.txt', '459.txt', '460.txt', '461.txt', '462.txt', '463.txt', '464.txt', '465.txt', '466.txt', '467.txt', '468.txt', '469.txt', '470.txt', '471.txt', '472.txt', '473.txt', '474.txt', '475.txt', '476.txt', '477.txt', '478.txt', '479.txt', '480.txt', '481.txt', '482.txt', '483.txt', '484.txt', '485.txt', '486.txt', '487.txt', '488.txt', '489.txt', '490.txt', '491.txt', '492.txt', '493.txt', '494.txt', '495.txt', '496.txt', '497.txt', '498.txt', '499.txt', '500.txt', '501.txt']
-	detected percentage: 0
-
-	"""

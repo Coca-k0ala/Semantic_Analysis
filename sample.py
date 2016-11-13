@@ -14,24 +14,26 @@ reference:
 Nazario, J. The online phishing corpus.https://monkey.org/~jose/phishing/, 2005. Accessed:2016-09-13.
 """
 #you should put the path for your mbox file there
-mbox_path = "D:/school/research/speech recognition/20051114.mbox"
+# mbox_path = "D:/school/research/speech recognition/20051114.mbox"
+mbox_path = "D:/school/research/speech recognition/phishing2.mbox"
 
 #read mbox file and get list of mails
 mails = read_mbox.get_mails_list(mbox_path)
+print(len(mails))
 
 #Given a list of all the mails, extract links from the file, using netcraft to perform link analysis, and
 #then return list of remaining files which cannot be detected by the link analysis.
 #set the save_files to True to save files that are not detected by link analysis to dir: link_failed
-# remain_index = read_mbox.test_netcraft_all_mails(mails[66:], save_files=True)
+# remain_index = read_mbox.test_netcraft_all_mails(mails[0:590], save_files=True)
 # print(remain_index)
 
 #this should be dir where you put files that you want to perform semantic analysis in. 
 #The default path created is link_failed
 # link_failed_path = os.getcwd()+"/link_failed/"
-link_failed_path = os.getcwd()+"/no_link/" #change
+link_failed_path = os.getcwd()+"/mails/" #change
 
 #when you want to check a single file
-# single_file = "1.txt"
+# single_file = "11.txt"
 # detect_urgency.check_mail_new_alg(link_failed_path + single_file)
 
 #when you want to check all the files in a directory
@@ -39,14 +41,13 @@ link_failed_path = os.getcwd()+"/no_link/" #change
 
 #when you want to see the percentage of malicious mail detected by checking command and question
 not_detected_list_QC, percent_QC = detect_urgency.percentage_detected(link_failed_path, only_QC=True)
-
-#when you want to see the percentage of malicious mail detected by checking urgent tone and generic greeting.
-not_detected_list, percent = detect_urgency.percentage_detected(link_failed_path, only_UG=True)
-
 print("QC percentage")
 print(not_detected_list_QC)
 print(percent_QC)
 
-print("UG percentage")
-print(not_detected_list)
-print(percent)
+#when you want to see the percentage of malicious mail detected by checking urgent tone and generic greeting.
+# not_detected_list, percent = detect_urgency.percentage_detected(link_failed_path, only_UG=True)
+
+# print("UG percentage")
+# print(not_detected_list)
+# print(percent)
